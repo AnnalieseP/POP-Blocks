@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pastel Pop! 🌸</title>
+    <style>
+        :root {
+            --bg-color: #f7f0f5;
+            --panel-color: #ffffff;
+            --text-color: #5c4d5a;
+            --border-radius: 16px;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            color: var(--text-color);
+            overflow: hidden;
+        }
+
+        h1 {
+            margin-bottom: 10px;
+            font-size: 2.5rem;
+            text-shadow: 2px 2px #ffdfd3;
+        }
+
+        #score-board {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+            background: var(--panel-color);
+            padding: 8px 20px;
+            border-radius: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        #game-container {
+            position: relative;
+            width: 320px;
+            height: 480px;
+            background: var(--panel-color);
+            border: 8px solid #e3d5ca;
+            border-radius: var(--border-radius);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.08);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end; /* Keeps blocks anchored to the bottom */
+        }
+
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-auto-rows: 40px;
+            width: 100%;
+        }
+
+        .block {
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+            box-sizing: border-box;
+            border: 2px solid var(--panel-color);
+            cursor: pointer;
+            transition: transform 0.1s ease, filter 0.2s ease;
+        }
+
+        .block:hover {
+            transform: scale(0.92);
+            filter: brightness(0.95);
+        }
+
+        /* Cute Pastel Colors */
+        .color-0 { background-color: #ffb7b2; } /* Pastel Pink */
+        .color-1 { background-color: #ffdac1; } /* Pastel Peach */
+        .color-2 { background-color: #e2f0cb; } /* Pastel Green */
+        .color-3 { background-color: #b5ead7; } /* Pastel Mint */
+        .color-4 { background-color: #c7ceea; } /* Pastel Lavender */
+
+        /* Game Over Overlay */
+        #game-over-screen {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(4px);
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .modal {
+            background: white;
+            padding: 30px;
+            border-radius: var(--border-radius);
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            border: 4px solid #ffb7b2;
+        }
+
+        .modal h2 {
+            margin-top: 0;
+            color: #ee6c4d;
+        }
+
+        button {
+            background-color: #b5ead7;
+            color: var(--text-color);
+            border: none;
+            padding: 10px 25px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: all 0.2s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0,0,0,0.15);
+            background-color: #9fe2c9;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Pastel Pop! 🌸</h1>
+    <div id="score-board">Score: <span id="score">0</span></div>
+
+    <div id="game-container">
+        <div id="grid"></div>
+        
+        <div id="game-over-screen">
+            <div class="modal">
+                <h2>Better luck next time! ✨</h2>
+                <p>You did great!</p>
+                <button onclick="resetGame()">Try Again</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const ROWS = 12;
+        const COLS = 8;
+        const COLORS = 5;
+        let gridData = []; // 2D array representing the board
+        let score = 0;
+        let gameInterval;
+        let isGameOver = false;
+
+        const gridElement = document.getElementById('grid');
+        const scoreElement = document.getElementById('score');
+        const gameOverScreen = document.getElementById('game-over-screen');
+
+        function initGame() {
+            gridData = [];
+            score = 0;
+            isGameOver = false;
+            scoreElement.textContent = score;
+            gameOverScreen.style.display = 'none';
+            
+            // Start with 6 rows of random blocks at the bottom
+            for (let r = 0; r < ROWS; r++) {
+                gridData[r] = [];
+                for (let c = 0; c < COLS; c++) {
+                    if (r >= ROWS - 6) {
+                        gridData[r][c] = Math.floor(Math.random() * COLORS);
+                    } else {
+                        gridData[r][c] = null; // Empty space at top
+                    }
+                }
+            }
+            
+            renderGrid();
+            // A new row spawns every 4 seconds
+            gameInterval = setInterval(spawnRow, 4000);
+        }
+
+        function renderGrid() {
+            gridElement.innerHTML = '';
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const blockValue = gridData[r][c];
+                    const block = document.createElement('div');
+                    block.classList.add('block');
+                    
+                    if (blockValue !== null) {
+                        block.classList.add(`color-${blockValue}`);
+                        block.addEventListener('click', () => handleBlockClick(r, c));
+                    } else {
+                        block.style.visibility = 'hidden'; // Keeps grid layout intact
+                    }
+                    gridElement.appendChild(block);
+                }
+            }
+        }
+
+        function handleBlockClick(r, c) {
+            if (isGameOver) return;
+
+            const targetColor = gridData[r][c];
+            if (targetColor === null) return;
+
+            // Find all connected blocks of the same color using Flood Fill algorithm
+            const matches = [];
+            const visited = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
+            
+            function findConnected(row, col) {
+                if (row < 0 || row >= ROWS || col < 0 || col >= COLS) return;
+                if (visited[row][col] || gridData[row][col] !== targetColor) return;
+
+                visited[row][col] = true;
+                matches.push({ row, col });
+
+                findConnected(row - 1, col); // Up
+                findConnected(row + 1, col); // Down
+                findConnected(row, col - 1); // Left
+                findConnected(row, col + 1); // Right
+            }
+
+            findConnected(r, c);
+
+            // Pop only if 3 or more are connected
+            if (matches.length >= 3) {
+                matches.forEach(match => {
+                    gridData[match.row][match.col] = null;
+                });
+                
+                score += matches.length * 10;
+                scoreElement.textContent = score;
+                
+                applyGravity();
+                renderGrid();
+            }
+        }
+
+        function applyGravity() {
+            // Move blocks down if there's empty space below them
+            for (let c = 0; c < COLS; c++) {
+                let emptyRow = ROWS - 1;
+                for (let r = ROWS - 1; r >= 0; r--) {
+                    if (gridData[r][c] !== null) {
+                        let temp = gridData[r][c];
+                        gridData[r][c] = null;
+                        gridData[emptyRow][c] = temp;
+                        emptyRow--;
+                    }
+                }
+            }
+        }
+
+        function spawnRow() {
+            if (isGameOver) return;
+
+            // Check if any block is in the very top row before shifting up
+            for (let c = 0; c < COLS; c++) {
+                if (gridData[0][c] !== null) {
+                    triggerGameOver();
+                    return;
+                }
+            }
+
+            // Shift all rows up by 1
+            for (let r = 0; r < ROWS - 1; r++) {
+                gridData[r] = [...gridData[r + 1]];
+            }
+
+            // Generate a brand new row at the bottom
+            gridData[ROWS - 1] = [];
+            for (let c = 0; c < COLS; c++) {
+                gridData[ROWS - 1][c] = Math.floor(Math.random() * COLORS);
+            }
+
+            renderGrid();
+        }
+
+        function triggerGameOver() {
+            isGameOver = true;
+            clearInterval(gameInterval);
+            
+            // Pop all remaining blocks as requested!
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    gridData[r][c] = null;
+                }
+            }
+            renderGrid();
+            
+            // Show cute pop-up
+            gameOverScreen.style.display = 'flex';
+        }
+
+        function resetGame() {
+            initGame();
+        }
+
+        // Run game on page load
+        initGame();
+    </script>
+</body>
+</html>
